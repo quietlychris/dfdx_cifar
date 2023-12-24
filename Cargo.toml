@@ -1,0 +1,13 @@
+[package]
+name = "dfdx_cifar"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dfdx = { git = "https://github.com/coreylowman/dfdx.git", commit  = "4615ac1", features = ["nightly"]}
+cifar-ten = { version = "0.5", features = ["download", "to_ndarray_015"]}
+ndarray = "0.15"
+indicatif = "0.16"
+rand = "0.8"
