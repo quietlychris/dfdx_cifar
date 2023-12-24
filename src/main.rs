@@ -31,9 +31,9 @@ fn main() {
         &model,
         AdamConfig {
             lr: 1e-3,
-            betas: [0.1, 0.2],
-            eps: 1e-6,
-            weight_decay: Some(WeightDecay::L2(1e-1)),
+            betas: [0.9, 0.999],
+            eps: 1e-8,
+            weight_decay: None,
         },
     );
 
