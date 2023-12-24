@@ -82,6 +82,19 @@ fn main() {
             lbl.as_vec()
         );
     }
+
+    println!("Do it with all zeros");
+    let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.zeros();
+    let lbl: Tensor<Rank1<10>, f32, _> = dev.zeros();
+
+    let output: Tensor<Rank1<10>, f32, _> = model.forward(inp);
+        // dbg!(output.as_vec());
+        println!(
+            "Input: {:.3?}\nOutput: {:.3?}",
+            output.as_vec(),
+            lbl.as_vec()
+        );
+
 }
 
 /// Our generic training function. Works with any model/optimizer/loss function!
