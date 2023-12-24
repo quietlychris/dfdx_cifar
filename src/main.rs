@@ -154,11 +154,12 @@ fn classification_train<
         let y = model.try_forward_mut(inp.traced(grads))?;
         let loss = criterion(y, lbl);
         let loss_value = loss.array();
+        println!("Loss value for {}: {:?}",i,&loss_value);
         grads = loss.try_backward().unwrap();
         if i % batch_accum == 0 {
             println!("Updating!");
             opt.update(model, &grads).unwrap();
-            // model.try_zero_grads(&mut grads)?;
+            model.try_zero_grads(&mut grads)?;
             println!("batch {i} | loss = {loss_value:?}");
         }
     }
