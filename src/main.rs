@@ -16,8 +16,8 @@ use crate::helper::*;
 #[built(FcNet)]
 struct FcNetConfig<const NUM_CLASSES: usize> {
     flatten: Flatten2D,
-    fc1: LinearConstConfig<3072, 1000>,
-    fc2: LinearConstConfig<1000, 256>,
+    fc1: LinearConstConfig<3072, 784>,
+    fc2: LinearConstConfig<784, 256>,
     fc3: LinearConstConfig<256, NUM_CLASSES>,
     sigmoid: Sigmoid,
 }
@@ -38,7 +38,7 @@ fn main() {
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
-            lr: 1e-2,
+            lr: 1e-3,
             momentum: Some(dfdx::nn::Momentum::Classic(0.9)),
             weight_decay: None,
         },
@@ -68,7 +68,7 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..100 {
+    for num in 0..1000 {
         let img: Array3<f32> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()

@@ -138,7 +138,7 @@ fn main() {
         let output = model.forward(inp).softmax().as_vec();
 
         // Use this to check the actual numerical output of each vector
-        // println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
+        println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
         let max_index_output = max_index(&output);
         let max_index_label = max_index(&lbl);
         if max_index_output == max_index_label {
