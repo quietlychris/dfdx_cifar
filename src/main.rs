@@ -86,7 +86,7 @@ fn main() {
     // Create an eval data set of just a few images for comparison
 
     let mut total_true = 0;
-    let num_eval = 3;
+    let num_eval = 200;
     for num in 0..num_eval {
         let img: Array3<f32> = test_data
             .slice(s![num, .., .., ..])
@@ -114,12 +114,12 @@ fn main() {
         let max_index_output = max_index(&output);
         let max_index_label = max_index(&lbl);
         if max_index_output == max_index_label {
-            if output[max_index_output] > 0.2 {
+            // if output[max_index_output] > 0.2 {
                 total_true +=1;
-            }
+            // }
         }
     }
-    println!("total_true: {}",total_true);
+    println!("total_true: {}/{}",total_true, num_eval);
     println!("% true: {}",total_true as f32 / num_eval as f32);
 
     // Compare eval set ouputs from output of just a zeroed input
