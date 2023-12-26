@@ -15,8 +15,11 @@ use crate::helper::*;
 #[derive(Default, Clone, Sequential)]
 #[built(FcNet)]
 struct FcNetConfig<const NUM_CLASSES: usize> {
+    // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
+    // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
+    conv1: Conv2DConstConfig<3, 2, 1>,
     flatten: Flatten2D,
-    fc1: LinearConstConfig<3072, 784>,
+    fc1: LinearConstConfig<2048, 784>,
     fc2: LinearConstConfig<784, 256>,
     fc3: LinearConstConfig<256, NUM_CLASSES>,
     sigmoid: Sigmoid,
@@ -26,6 +29,7 @@ use cifar_ten::*;
 use ndarray::{s, Array1, Array3, Array4};
 
 fn main() {
+    dfdx::flush_denormals_to_zero();
     //---- Resnet---------
     let mut dev = AutoDevice::default();
     // let arch = Resnet18Config::<10>::default();
