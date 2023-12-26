@@ -53,7 +53,7 @@ fn main() {
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
-            lr: 1e-6,
+            lr: 1e-5,
             momentum: Some(dfdx::nn::Momentum::Classic(0.9)),
             weight_decay: None,
         },
@@ -83,7 +83,7 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..50_000 {
+    for num in 0..30_000 {
         let img: Array3<f64> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()
