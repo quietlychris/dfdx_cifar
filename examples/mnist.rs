@@ -1,32 +1,22 @@
 #![feature(generic_const_exprs)]
-
-/// This advanced example shows how to work with dfdx in a generic
-/// training setting.
 use dfdx::prelude::*;
-use dfdx::tensor_ops::softmax;
+use mnist::*;
+// use ndarray::prelude::*;
+use ndarray::{s, Array1, Array2, Array3, Array4};
 
-mod resnet;
-use crate::resnet::*;
-mod helper;
-use crate::helper::*;
-//mod simple_conv;
-//use crate::simple_conv::*;
 
 #[derive(Default, Clone, Sequential)]
 #[built(FcNet)]
 struct FcNetConfig<const NUM_CLASSES: usize> {
     flatten: Flatten2D,
-    fc1: LinearConstConfig<3072, 1000>,
-    fc2: LinearConstConfig<1000, 256>,
+    fc1: LinearConstConfig<784, 600>,
+    fc2: LinearConstConfig<600, 256>,
     fc3: LinearConstConfig<256, NUM_CLASSES>,
     sigmoid: Sigmoid,
 }
 
-use cifar_ten::*;
-use ndarray::{s, Array1, Array3, Array4};
-
 fn main() {
-    //---- Resnet---------
+    //---- Resnet--------Array-
     let mut dev = AutoDevice::default();
     // let arch = Resnet18Config::<10>::default();
     // type Model = Resnet18Config<10>;
@@ -38,7 +28,7 @@ fn main() {
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
-            lr: 1e-2,
+            lr: 1e-3,
             momentum: Some(dfdx::nn::Momentum::Classic(0.9)),
             weight_decay: None,
         },
@@ -54,27 +44,54 @@ fn main() {
         },
     ); */
 
-    // Use cifar_ten library to download/parse data set
-    let (train_data, train_labels, test_data, test_labels) = Cifar10::default()
-        .download_and_extract(true)
-        .base_path("data")
-        .download_url("https://cmoran.xyz/data/cifar/cifar-10-binary.tar.gz")
-        // .download_url("https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz")
-        .encode_one_hot(true)
-        .build()
-        .unwrap()
-        .to_ndarray::<f32>()
-        .unwrap();
+    // Deconstruct the returned Mnist struct.
+    let Mnist {
+        trn_img,
+        trn_lbl,
+        tst_img,
+        tst_lbl,
+        ..
+    } = MnistBuilder::new()
+        .download_and_extract()
+        .label_format_one_hot()
+        .training_set_length(50_000)
+        .validation_set_length(10_000)
+        .test_set_length(10_000)
+        .finalize();
+
+    let image_num = 0;
+    // Can use an Array2 or Array3 here (Array3 for visualization)
+    let train_data = Array3::from_shape_vec((50_000, 28, 28), trn_img)
+        .expect("Error converting images to Array3 struct")
+        .map(|x| *x as f32 / 256.0);
+    // println!("{:#.1?}\n", train_data.slice(s![image_num, .., ..]));
+
+    // Convert the returned Mnist struct to Array2 format
+    let train_labels: Array2<f32> = Array2::from_shape_vec((50_000, 10), trn_lbl)
+        .expect("Error converting training labels to Array2 struct")
+        .map(|x| *x as f32);
+    println!(
+        "The first digit is a {:?}",
+        train_labels.slice(s![image_num, ..])
+    );
+
+    let test_data = Array3::from_shape_vec((10_000, 28, 28), tst_img)
+        .expect("Error converting images to Array3 struct")
+        .map(|x| *x as f32 / 256.);
+
+    let test_labels: Array2<f32> = Array2::from_shape_vec((10_000, 10), tst_lbl)
+        .expect("Error converting testing labels to Array2 struct")
+        .map(|x| *x as f32);
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..100 {
+    for num in 0..10_000 {
         let img: Array3<f32> = train_data
-            .slice(s![num, .., .., ..])
+            .slice(s![num, .., ..])
             .to_owned()
-            .into_shape((3, 32, 32))
+            .into_shape((1, 28, 28))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank3<1, 28, 28>, f32, _> = dev.tensor(img.into_raw_vec());
 
         let label: Array1<f32> = train_labels
             .slice(s![num, ..])
@@ -104,11 +121,11 @@ fn main() {
     let num_eval = 1000;
     for num in 0..num_eval {
         let img: Array3<f32> = test_data
-            .slice(s![num, .., .., ..])
+            .slice(s![num, .., ..])
             .to_owned()
-            .into_shape((3, 32, 32))
+            .into_shape((1, 28, 28))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank3<1, 28, 28>, f32, _> = dev.tensor(img.into_raw_vec());
 
         let label: Array1<f32> = test_labels
             .slice(s![num, ..])
@@ -121,7 +138,7 @@ fn main() {
         let output = model.forward(inp).softmax().as_vec();
 
         // Use this to check the actual numerical output of each vector
-        println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
+        // println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
         let max_index_output = max_index(&output);
         let max_index_label = max_index(&lbl);
         if max_index_output == max_index_label {
@@ -135,7 +152,7 @@ fn main() {
 
     // Compare eval set ouputs from output of just a zeroed input
     println!("Do it with all zeros");
-    let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.zeros();
+    let inp: Tensor<Rank3<1, 28, 28>, f32, _> = dev.zeros();
     let lbl: Tensor<Rank1<10>, f32, _> = dev.zeros();
 
     let output: Tensor<Rank1<10>, f32, _> = model.forward(inp);
@@ -198,4 +215,17 @@ fn classification_train<
         }
     }
     Ok(())
+}
+
+#[inline]
+pub fn max_index(v: &Vec<f32>) -> usize {
+    let mut index = 0;
+    let mut max = v[0];
+    for i in 1..v.len() {
+        if v[i] > max {
+            index = i;
+            max = v[i];
+        }
+    }
+    index
 }

@@ -47,3 +47,30 @@ pub struct Resnet18Config<const NUM_CLASSES: usize> {
     // l4: (Downsample<256, 512>, ReLU, BasicBlock<512>, ReLU),
     l5: (AvgPoolGlobal, LinearConstConfig<256, NUM_CLASSES>),
 }
+
+//------------ SMALL RESNET ----------------
+
+/* #[derive(Default, Clone, Sequential)]
+pub struct ResidualBlock<const C: usize, const D: usize> (
+    (Conv2D<C, D, 3, 1, 1>, BatchNorm2D<D>, MaxPool2D<3>, ReLU),
+    Residual<(Conv2D<D, D, 3, 1, 1>, BatchNorm2D<D>, ReLU)>,
+);
+
+
+pub struct BlockA<const C: usize, const D: usize> {
+    conv1: Conv2DConstConfig<C, D, 3, 1, 1>,
+    bn: BatchNorm2DConstConfig<D>,
+    mp: MaxPool2DConst<3>,
+    relu: ReLU,
+
+}
+
+#[derive(Default, Clone, Sequential)]
+#[built(SmallResnet)]
+pub struct SmallResnet<const NUM_CLASSES: usize> = (
+    (Conv2D<3, 32, 3>, BatchNorm2D<32>, ReLU, MaxPool2D<3>),
+    ResidualBlock<32, 64>,
+    ResidualBlock<64, 128>,
+    ResidualBlock<128, 256>,
+    (AvgPoolGlobal, Linear<256, NUM_CLASSES>),
+); */
