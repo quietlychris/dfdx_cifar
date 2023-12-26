@@ -4,7 +4,6 @@ use mnist::*;
 // use ndarray::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, Array4};
 
-
 #[derive(Default, Clone, Sequential)]
 #[built(FcNet)]
 struct FcNetConfig<const NUM_CLASSES: usize> {

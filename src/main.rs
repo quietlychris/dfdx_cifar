@@ -31,23 +31,23 @@ fn main() {
     // let arch = Resnet18Config::<10>::default();
     // type Model = Resnet18Config<10>;
     type Model = FcNetConfig<10>;
-    let mut model = dev.build_module::<f32>(Model::default());
+    let mut model = dev.build_module::<f64>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
-
+    
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
-            lr: 1e-3,
+            lr: 1e-6,
             momentum: Some(dfdx::nn::Momentum::Classic(0.9)),
             weight_decay: None,
         },
     );
 
-    /*     let mut opt = dfdx::nn::optim::Adam::new(
+/*     let mut opt = dfdx::nn::optim::Adam::new(
         &model,
         AdamConfig {
-            lr: 1e-7,
+            lr: 1e-8,
             betas: [0.9, 0.999],
             eps: 1e-8,
             weight_decay: Some(WeightDecay::L2(1e-6)), // Some(WeightDecay::Decoupled(1e-6)),
@@ -63,25 +63,25 @@ fn main() {
         .encode_one_hot(true)
         .build()
         .unwrap()
-        .to_ndarray::<f32>()
+        .to_ndarray::<f64>()
         .unwrap();
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..1000 {
-        let img: Array3<f32> = train_data
+    for num in 0..3000 {
+        let img: Array3<f64> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()
             .into_shape((3, 32, 32))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
 
-        let label: Array1<f32> = train_labels
+        let label: Array1<f64> = train_labels
             .slice(s![num, ..])
             .to_owned()
             .into_shape(10)
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f32, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
         data.push((inp, lbl));
     }
 
@@ -91,7 +91,7 @@ fn main() {
         &mut opt,
         // binary_cross_entropy_with_logits_loss,
         cross_entropy_with_logits_loss,
-        //mse_loss,
+        // mse_loss,
         data.clone().into_iter(),
         5,
         &mut dev,
@@ -103,19 +103,19 @@ fn main() {
     let mut total_true = 0;
     let num_eval = 1000;
     for num in 0..num_eval {
-        let img: Array3<f32> = test_data
+        let img: Array3<f64> = test_data
             .slice(s![num, .., .., ..])
             .to_owned()
             .into_shape((3, 32, 32))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
 
-        let label: Array1<f32> = test_labels
+        let label: Array1<f64> = test_labels
             .slice(s![num, ..])
             .to_owned()
             .into_shape(10)
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f32, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
         let lbl = lbl.as_vec();
 
         let output = model.forward(inp).softmax().as_vec();
@@ -131,14 +131,14 @@ fn main() {
         }
     }
     println!("total_true: {}/{}", total_true, num_eval);
-    println!("% true: {}", total_true as f32 / num_eval as f32);
+    println!("% true: {}", total_true as f64 / num_eval as f64);
 
     // Compare eval set ouputs from output of just a zeroed input
     println!("Do it with all zeros");
-    let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.zeros();
-    let lbl: Tensor<Rank1<10>, f32, _> = dev.zeros();
+    let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.zeros();
+    let lbl: Tensor<Rank1<10>, f64, _> = dev.zeros();
 
-    let output: Tensor<Rank1<10>, f32, _> = model.forward(inp);
+    let output: Tensor<Rank1<10>, f64, _> = model.forward(inp);
     // dbg!(output.as_vec());
     println!(
         "Actual: {:.3?}\nLabel: {:.3?}",
