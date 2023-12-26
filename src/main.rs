@@ -12,11 +12,10 @@ use crate::helper::*;
 //mod simple_conv;
 //use crate::simple_conv::*;
 
-
-/* GOOD! 
-    // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-    // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    // conv1: Conv2DConstConfig<3, 2, 1>,
+/* GOOD!
+// Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
+// 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
+// conv1: Conv2DConstConfig<3, 2, 1>,
 */
 
 // Mirroring https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
@@ -27,7 +26,7 @@ struct FcNetConfig<const NUM_CLASSES: usize> {
     // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
     // conv1: Conv2DConstConfig<3, 2, 1>,
     conv1: Conv2DConstConfig<3, 6, 5>,
-    mp: MaxPool2DConst<2, 2>, 
+    mp: MaxPool2DConst<2, 2>,
     conv2: Conv2DConstConfig<6, 16, 5>,
     flatten: Flatten2D,
     fc1: LinearConstConfig<1600, 120>,
@@ -37,7 +36,9 @@ struct FcNetConfig<const NUM_CLASSES: usize> {
 }
 
 use cifar_ten::*;
-use ndarray::{s, Array1, Array3, Array4};
+use ndarray::{s, Array1, Array2, Array3, Array4};
+
+const BATCH_SIZE: usize = 10;
 
 fn main() {
     dfdx::flush_denormals_to_zero();
@@ -49,7 +50,7 @@ fn main() {
     let mut model = dev.build_module::<f64>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
-    
+
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
@@ -59,7 +60,7 @@ fn main() {
         },
     );
 
-/*     let mut opt = dfdx::nn::optim::Adam::new(
+    /*     let mut opt = dfdx::nn::optim::Adam::new(
         &model,
         AdamConfig {
             lr: 1e-8,
@@ -83,24 +84,26 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..30_000 {
-        let img: Array3<f64> = train_data
-            .slice(s![num, .., .., ..])
+    for num in 0..(50_000 / BATCH_SIZE) {
+        let base = num * BATCH_SIZE;
+        let img: Array4<f64> = train_data
+            .slice(s![base..base + BATCH_SIZE, .., .., ..])
             .to_owned()
-            .into_shape((3, 32, 32))
+            .into_shape((BATCH_SIZE, 3, 32, 32))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank4<BATCH_SIZE, 3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
 
-        let label: Array1<f64> = train_labels
-            .slice(s![num, ..])
+        let label: Array2<f64> = train_labels
+            .slice(s![base..base + BATCH_SIZE, ..])
             .to_owned()
-            .into_shape(10)
+            .into_shape((BATCH_SIZE, 10))
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank2<BATCH_SIZE, 10>, f64, _> = dev.tensor(label.into_raw_vec());
         data.push((inp, lbl));
     }
 
-    // Classification train loop taken from dfdx example     let epochs = 2;
+    // Classification train loop taken from dfdx example
+
     classification_train(
         &mut model,
         &mut opt,
@@ -110,6 +113,7 @@ fn main() {
         data.clone().into_iter(),
         5,
         &mut dev,
+        2
     )
     .unwrap();
 
@@ -123,17 +127,17 @@ fn main() {
             .to_owned()
             .into_shape((3, 32, 32))
             .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank4<1, 3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
 
         let label: Array1<f64> = test_labels
             .slice(s![num, ..])
             .to_owned()
             .into_shape(10)
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank2<1, 10>, f64, _> = dev.tensor(label.into_raw_vec());
         let lbl = lbl.as_vec();
 
-        let output = model.forward(inp).softmax().as_vec();
+        let output = model.forward(inp).softmax::<Axis<1>>().as_vec();
 
         // Use this to check the actual numerical output of each vector
         println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
@@ -150,14 +154,14 @@ fn main() {
 
     // Compare eval set ouputs from output of just a zeroed input
     println!("Do it with all zeros");
-    let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.zeros();
+    let inp: Tensor<Rank4<1, 3, 32, 32>, f64, _> = dev.zeros();
     let lbl: Tensor<Rank1<10>, f64, _> = dev.zeros();
 
-    let output: Tensor<Rank1<10>, f64, _> = model.forward(inp);
+    let output: Tensor<Rank2<1, 10>, f64, _> = model.forward(inp);
     // dbg!(output.as_vec());
     println!(
         "Actual: {:.3?}\nLabel: {:.3?}",
-        output.softmax().as_vec(),
+        output.softmax::<Axis<1>>().as_vec(),
         lbl.as_vec()
     );
 }
@@ -176,7 +180,7 @@ fn classification_train<
     // optimizer, pretty straight forward
     Opt: Optimizer<Model, E, D>,
     // our data will just be any iterator over these items. easy!
-    Data: Iterator<Item = (Inp, Lbl)>,
+    Data: Iterator<Item = (Inp, Lbl)> + Clone,
     // Our loss function that takes the model's output & label and returns
     // the loss. again we can use a rust builtin
     Criterion: FnMut(Model::Output, Lbl) -> Loss,
@@ -193,23 +197,32 @@ fn classification_train<
     data: Data,
     batch_accum: usize,
     device: &mut AutoDevice,
+    epochs: usize,
 ) -> Result<(), Error> {
     // Should this be inside or outside the enumeration loop?
     let mut grads = model.try_alloc_grads()?;
-    for (i, (inp, lbl)) in data.enumerate() {
-        let y = model.try_forward_mut(inp.traced(grads))?;
+    for epoch in 0..epochs {
+        println!("- EPOCH #{}",epoch);
+        let data = data.clone();
+        for (i, (inp, lbl)) in data.enumerate() {
+            let y = model.try_forward_mut(inp.traced(grads))?;
 
-        let loss = criterion(y, lbl);
-        let loss_value = loss.array();
-        // println!("Loss value for {}: {:?}", i, &loss_value);
-        grads = loss.try_backward().unwrap();
-        device.synchronize();
-        if i % batch_accum == 0 {
-            println!("Updating!");
-            opt.update(model, &grads).unwrap();
-            model.try_zero_grads(&mut grads)?;
+            let loss = criterion(y, lbl);
+            let loss_value = loss.array();
+            // println!("Loss value for {}: {:?}", i, &loss_value);
+            grads = loss.try_backward().unwrap();
             device.synchronize();
-            println!("batch {i} | loss = {loss_value:?}");
+            if i % batch_accum == 0 {
+                // println!("Updating!");
+                opt.update(model, &grads).unwrap();
+                println!("batch {i} | loss = {loss_value:?}");
+
+                model.try_zero_grads(&mut grads)?;
+                device.synchronize();
+            }
+            if i % 2000 == 1999 {
+                println!("batch {i} | loss = {loss_value:?}");
+            }
         }
     }
     Ok(())
