@@ -3,37 +3,39 @@
 /// This advanced example shows how to work with dfdx in a generic
 /// training setting.
 use dfdx::prelude::*;
-mod resnet;
+use dfdx::tensor_ops::softmax;
 
+mod resnet;
 use crate::resnet::*;
+mod helper;
+use crate::helper::*;
+
 
 use cifar_ten::*;
-use ndarray::{s, Array1, Array3};
+use ndarray::{s, Array1, Array3, Array4};
 
 fn main() {
-    
     //---- Resnet---------
-    let dev = AutoDevice::default();
+    let mut dev = AutoDevice::default();
     // let arch = Resnet18Config::<10>::default();
     type Model = Resnet18Config<10>;
     let mut model = dev.build_module::<f32>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
-    /*     
-    let mut opt = dfdx::nn::optim::Sgd::new(&model, SgdConfig {
+
+    /*     let mut opt = dfdx::nn::optim::Sgd::new(&model, SgdConfig {
         lr: 1e-9,
         momentum: None,
         weight_decay: None,
-    }); 
-    */
+    }); */
 
     let mut opt = dfdx::nn::optim::Adam::new(
         &model,
         AdamConfig {
-            lr: 1e-3,
+            lr: 1e-7,
             betas: [0.9, 0.999],
             eps: 1e-8,
-            weight_decay: None,
+            weight_decay: Some(WeightDecay::L2(1e-6)), // Some(WeightDecay::Decoupled(1e-6)),
         },
     );
 
@@ -51,7 +53,7 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..10 {
+    for num in 0..100 {
         let img: Array3<f32> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()
@@ -68,19 +70,24 @@ fn main() {
         data.push((inp, lbl));
     }
 
-    // Classification train loop taken from dfdx example
+    // Classification train loop taken from dfdx example     let epochs = 2;
     classification_train(
         &mut model,
         &mut opt,
-        binary_cross_entropy_with_logits_loss,
+        // binary_cross_entropy_with_logits_loss,
         // cross_entropy_with_logits_loss,
-        data.into_iter(),
-        1,
+        mse_loss,
+        data.clone().into_iter(),
+        5,
+        &mut dev,
     )
     .unwrap();
 
     // Create an eval data set of just a few images for comparison
-    for num in 0..3 {
+
+    let mut total_true = 0;
+    let num_eval = 3;
+    for num in 0..num_eval {
         let img: Array3<f32> = test_data
             .slice(s![num, .., .., ..])
             .to_owned()
@@ -94,15 +101,26 @@ fn main() {
             .into_shape(10)
             .unwrap();
         let lbl: Tensor<Rank1<10>, f32, _> = dev.tensor(label.into_raw_vec());
+        let lbl = lbl.as_vec();
 
-        let output: Tensor<Rank1<10>, f32, _> = model.forward(inp);
-        // dbg!(output.as_vec());
+        let output = model.forward(inp).softmax().as_vec();
+          
+        // Use this to check the actual numerical output of each vector        
         println!(
             "Actual: {:.3?}\nLabel: {:.3?}",
-            output.as_vec(),
-            lbl.as_vec()
+            output,
+            lbl
         );
+        let max_index_output = max_index(&output);
+        let max_index_label = max_index(&lbl);
+        if max_index_output == max_index_label {
+            if output[max_index_output] > 0.2 {
+                total_true +=1;
+            }
+        }
     }
+    println!("total_true: {}",total_true);
+    println!("% true: {}",total_true as f32 / num_eval as f32);
 
     // Compare eval set ouputs from output of just a zeroed input
     println!("Do it with all zeros");
@@ -113,9 +131,10 @@ fn main() {
     // dbg!(output.as_vec());
     println!(
         "Actual: {:.3?}\nLabel: {:.3?}",
-        output.as_vec(),
+        output.softmax().as_vec(),
         lbl.as_vec()
     );
+
 }
 
 /// Our generic training function. Works with any model/optimizer/loss function!
@@ -148,20 +167,28 @@ fn classification_train<
     mut criterion: Criterion,
     data: Data,
     batch_accum: usize,
+    device: &mut AutoDevice,
 ) -> Result<(), Error> {
+    
+    // Should this be inside or outside the enumeration loop?
     let mut grads = model.try_alloc_grads()?;
     for (i, (inp, lbl)) in data.enumerate() {
         let y = model.try_forward_mut(inp.traced(grads))?;
+
         let loss = criterion(y, lbl);
         let loss_value = loss.array();
-        println!("Loss value for {}: {:?}",i,&loss_value);
+        // println!("Loss value for {}: {:?}", i, &loss_value);
         grads = loss.try_backward().unwrap();
+        device.synchronize();
         if i % batch_accum == 0 {
             println!("Updating!");
             opt.update(model, &grads).unwrap();
             model.try_zero_grads(&mut grads)?;
+            device.synchronize();
             println!("batch {i} | loss = {loss_value:?}");
         }
     }
     Ok(())
 }
+
+
