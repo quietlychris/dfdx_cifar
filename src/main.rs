@@ -83,7 +83,7 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..5000 {
+    for num in 0..50_000 {
         let img: Array3<f64> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()
