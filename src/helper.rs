@@ -1,12 +1,7 @@
 #[inline]
-pub fn max_index(v: &Vec<f64>) -> usize {
-    let mut index = 0;
-    let mut max = v[0];
-    for i in 1..v.len() {
-        if v[i] > max {
-            index = i;
-            max = v[i];
-        }
-    }
-    index
+pub fn max_index(v: &[f64]) -> usize {
+    v.iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .map_or(0, |(index, _)| index)
 }

@@ -12,11 +12,10 @@ use crate::helper::*;
 //mod simple_conv;
 //use crate::simple_conv::*;
 
-
-/* GOOD! 
-    // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-    // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    // conv1: Conv2DConstConfig<3, 2, 1>,
+/* GOOD!
+// Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
+// 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
+// conv1: Conv2DConstConfig<3, 2, 1>,
 */
 
 // Mirroring https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
@@ -27,7 +26,7 @@ struct FcNetConfig<const NUM_CLASSES: usize> {
     // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
     // conv1: Conv2DConstConfig<3, 2, 1>,
     conv1: Conv2DConstConfig<3, 6, 5>,
-    mp: MaxPool2DConst<2, 2>, 
+    mp: MaxPool2DConst<2, 2>,
     conv2: Conv2DConstConfig<6, 16, 5>,
     flatten: Flatten2D,
     fc1: LinearConstConfig<1600, 120>,
@@ -49,7 +48,7 @@ fn main() {
     let mut model = dev.build_module::<f64>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
-    
+
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
@@ -59,7 +58,7 @@ fn main() {
         },
     );
 
-/*     let mut opt = dfdx::nn::optim::Adam::new(
+    /*     let mut opt = dfdx::nn::optim::Adam::new(
         &model,
         AdamConfig {
             lr: 1e-8,
