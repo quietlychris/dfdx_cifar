@@ -32,7 +32,7 @@ struct FcNetConfig<const NUM_CLASSES: usize> {
     fc1: LinearConstConfig<1600, 120>,
     fc2: LinearConstConfig<120, 84>,
     fc3: LinearConstConfig<84, NUM_CLASSES>,
-    // sigmoid: Sigmoid,
+    // softmax: Softmax
 }
 
 use cifar_ten::*;
@@ -52,7 +52,7 @@ fn main() {
     let mut opt = dfdx::nn::optim::Sgd::new(
         &model,
         SgdConfig {
-            lr: 1e-5,
+            lr: 1e-4,
             momentum: Some(dfdx::nn::Momentum::Classic(0.9)),
             weight_decay: None,
         },
@@ -79,15 +79,19 @@ fn main() {
         .unwrap()
         .to_ndarray::<f64>()
         .unwrap();
+    // Normalize the imagery
+    let train_data = train_data.mapv(|x| x / 256.0);
+    let test_data = test_data.mapv(|x| x / 256.0);
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..30_000 {
+    for num in 0..50_000 {
         let img: Array3<f64> = train_data
             .slice(s![num, .., .., ..])
             .to_owned()
             .into_shape((3, 32, 32))
             .unwrap();
+        // println!("{:.2?}", &img);
         let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
 
         let label: Array1<f64> = train_labels
