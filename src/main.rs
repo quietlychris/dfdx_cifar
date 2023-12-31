@@ -6,34 +6,10 @@
 use dfdx::prelude::*;
 // use dfdx::tensor_ops::softmax;
 
-mod resnet;
-// use crate::resnet::*;
+mod networks;
+use crate::networks::{simple_conv::*, alexnet::AlexNetConfig}; 
 mod helper;
 use crate::helper::*;
-//mod simple_conv;
-//use crate::simple_conv::*;
-
-/* GOOD!
-// Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-// 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-// conv1: Conv2DConstConfig<3, 2, 1>,
-*/
-
-// Mirroring https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-#[derive(Default, Clone, Sequential)]
-#[built(FcNet)]
-struct FcNetConfig<const NUM_CLASSES: usize> {
-    // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-    // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    conv1: Conv2DConstConfig<3, 6, 5>,
-    mp: MaxPool2DConst<2, 2>,
-    conv2: Conv2DConstConfig<6, 16, 5>,
-    flatten: Flatten2D,
-    fc1: LinearConstConfig<1600, 120>,
-    fc2: LinearConstConfig<120, 84>,
-    fc3: LinearConstConfig<84, NUM_CLASSES>,
-    // softmax: Softmax
-}
 
 use cifar_ten::*;
 use ndarray::{s, Array1, Array3, Array4};
@@ -44,7 +20,8 @@ fn main() {
     let mut dev = AutoDevice::default();
     // let arch = Resnet18Config::<10>::default();
     // type Model = Resnet18Config<10>;
-    type Model = FcNetConfig<10>;
+    // type Model = SimpleConvConfig<10>;
+    type Model = AlexNetConfig<10>;
     let mut model = dev.build_module::<f64>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
