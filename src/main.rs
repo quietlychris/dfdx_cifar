@@ -1,12 +1,13 @@
+#![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
 /// This advanced example shows how to work with dfdx in a generic
 /// training setting.
 use dfdx::prelude::*;
-use dfdx::tensor_ops::softmax;
+// use dfdx::tensor_ops::softmax;
 
 mod resnet;
-use crate::resnet::*;
+// use crate::resnet::*;
 mod helper;
 use crate::helper::*;
 //mod simple_conv;
@@ -24,7 +25,6 @@ use crate::helper::*;
 struct FcNetConfig<const NUM_CLASSES: usize> {
     // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
     // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    // conv1: Conv2DConstConfig<3, 2, 1>,
     conv1: Conv2DConstConfig<3, 6, 5>,
     mp: MaxPool2DConst<2, 2>,
     conv2: Conv2DConstConfig<6, 16, 5>,
