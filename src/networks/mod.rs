@@ -1,4 +1,9 @@
-pub mod resnet;
-pub mod simple_conv;
+//pub mod resnet;
+// pub mod simple_conv;
 //pub mod fast_resnet;
-pub mod alexnet;
+//pub mod alexnet;
+//mod smallconv;
+//pub use crate::networks::smallconv::*;
+
+mod simple_conv;
+pub use crate::networks::simple_conv::*;

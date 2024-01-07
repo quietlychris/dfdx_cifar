@@ -12,7 +12,7 @@ pub struct AlexNetConfig<const NUM_CLASSES: usize> {
     relu1: ReLU,
     // MaxPool2DConst<KERNEL_SIZE,STRIDE,PADDING, DILATION>
     mp1: MaxPool2DConst<3, 2, 0, 1>,
-    conv2: Conv2DConstConfig<64, 192, 5, 1, 2>,
+    conv2: Conv2DConstConfig<64, 192, 5, 2, 1>,
     relu2: ReLU,
     mp2: MaxPool2DConst<3, 2, 0, 1>,
     conv3: Conv2DConstConfig<192, 384, 3, 1, 1>,
@@ -21,16 +21,22 @@ pub struct AlexNetConfig<const NUM_CLASSES: usize> {
     relu4: ReLU,
     conv5: Conv2DConstConfig<256, 256, 3, 1, 1>,
     relu5: ReLU,
-    mp3: MaxPool2DConst<3, 2, 0, 1>,
-    avg: AvgPool2DConst<6>,
+    mp3: MaxPool2DConst<3, 2>,
+    // avg: AvgPool2DConst<6>,
     dropout: Dropout,
     flatten: Flatten2D,
+    
+    classifier: Classifier<NUM_CLASSES>
+    // softmax: Softmax
+}
+
+#[derive(Default, Clone, Sequential)]
+struct Classifier<const NUM_CLASSES: usize> {
     fc1: LinearConstConfig<9216, 4096>,
     relu6: ReLU,
     fc2: LinearConstConfig<4096, 1024>,
     relu7: ReLU,
-    fc3: LinearConstConfig<1024, NUM_CLASSES>,
-    // softmax: Softmax
+    fc3: LinearConstConfig<1024, NUM_CLASSES>
 }
 
 /* 

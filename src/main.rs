@@ -6,22 +6,24 @@
 use dfdx::prelude::*;
 // use dfdx::tensor_ops::softmax;
 
+use std::error::Error;
 mod networks;
-use crate::networks::{simple_conv::*, alexnet::AlexNetConfig}; 
+use crate::networks::*;
 mod helper;
 use crate::helper::*;
 
 use cifar_ten::*;
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 use ndarray::{s, Array1, Array3, Array4};
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     dfdx::flush_denormals_to_zero();
     //---- Resnet---------
     let mut dev = AutoDevice::default();
     // let arch = Resnet18Config::<10>::default();
     // type Model = Resnet18Config<10>;
-    // type Model = SimpleConvConfig<10>;
-    type Model = AlexNetConfig<10>;
+    type Model = SimpleConvConfig<10>;
     let mut model = dev.build_module::<f64>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
@@ -80,18 +82,25 @@ fn main() {
         data.push((inp, lbl));
     }
 
-    // Classification train loop taken from dfdx example     let epochs = 2;
-    classification_train(
-        &mut model,
-        &mut opt,
-        // binary_cross_entropy_with_logits_loss,
-        cross_entropy_with_logits_loss,
-        // mse_loss,
-        data.clone().into_iter(),
-        5,
-        &mut dev,
-    )
-    .unwrap();
+
+    for i in 0..2 {
+        let mut data = data.clone();
+        data.shuffle(&mut thread_rng());
+    
+        // Classification train loop taken from dfdx example     let epochs = 2;
+        classification_train(
+            &mut model,
+            &mut opt,
+            // binary_cross_entropy_with_logits_loss,
+            cross_entropy_with_logits_loss,
+            // mse_loss,
+            data.clone().into_iter(),
+            5,
+            &mut dev,
+        )
+        .unwrap();
+    }
+
 
     // Create an eval data set of just a few images for comparison
 
@@ -113,7 +122,7 @@ fn main() {
         let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
         let lbl = lbl.as_vec();
 
-        let output = model.forward(inp).softmax().as_vec();
+        let output = model.try_forward(inp)?.softmax().as_vec();
 
         // Use this to check the actual numerical output of each vector
         println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
@@ -140,6 +149,8 @@ fn main() {
         output.softmax().as_vec(),
         lbl.as_vec()
     );
+
+    Ok(())
 }
 
 /// Our generic training function. Works with any model/optimizer/loss function!
@@ -173,7 +184,7 @@ fn classification_train<
     data: Data,
     batch_accum: usize,
     device: &mut AutoDevice,
-) -> Result<(), Error> {
+) -> Result<(), Box<dyn Error>> {
     // Should this be inside or outside the enumeration loop?
     let mut grads = model.try_alloc_grads()?;
     for (i, (inp, lbl)) in data.enumerate() {
