@@ -13,7 +13,6 @@ struct SmallResnet<const NUM_CLASSES: usize> = (
     (AvgPoolGlobal, Linear<256, NUM_CLASSES>),
 ); */
 
-
 /* GOOD!
 // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
 // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
@@ -27,16 +26,20 @@ pub struct SimpleConvConfig<const NUM_CLASSES: usize> {
     // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
     // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
     conv1: Conv2DConstConfig<3, 6, 5>,
+    relu1: ReLU,
     mp: MaxPool2DConst<2, 2>,
     conv2: Conv2DConstConfig<6, 16, 5>,
+    relu2: ReLU,
     flatten: Flatten2D,
     fc1: LinearConstConfig<1600, 120>,
+    dp1: Dropout,
     fc2: LinearConstConfig<120, 84>,
+    dp2: Dropout,
     fc3: LinearConstConfig<84, NUM_CLASSES>,
     // softmax: Softmax
 }
 
-/* 
+/*
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
@@ -44,4 +47,3 @@ pub struct SimpleConvConfig<const NUM_CLASSES: usize> {
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
 */
-

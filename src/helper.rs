@@ -1,5 +1,5 @@
 #[inline]
-pub fn max_index(v: &[f64]) -> usize {
+pub fn max_index(v: &[f32]) -> usize {
     v.iter()
         .enumerate()
         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
