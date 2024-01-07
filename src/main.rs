@@ -13,10 +13,12 @@ mod helper;
 use crate::helper::*;
 
 use cifar_ten::*;
-use ndarray::{s, Array1, Array3, Array4};
+use ndarray::{s, Array1, Array2, Array3, Array4};
 use pbr::ProgressBar;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+
+const BS: usize = 1; // BATCH_SIZE
 
 fn main() -> Result<(), Box<dyn Error>> {
     dfdx::flush_denormals_to_zero();
@@ -64,28 +66,32 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..50_000 {
-        let img: Array3<f32> = train_data
-            .slice(s![num, .., .., ..])
+    for num in 0..(50_000 / BS) {
+        let base = BS * num;
+        let img: Array4<f32> = train_data
+            .slice(s![base..base+BS, .., .., ..])
             .to_owned()
-            .into_shape((3, 32, 32))
+            .into_shape((BS, 3, 32, 32))
             .unwrap();
         // println!("{:.2?}", &img);
-        let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank4<BS, 3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
 
-        let label: Array1<f32> = train_labels
-            .slice(s![num, ..])
+        let label: Array2<f32> = train_labels
+            .slice(s![base..base+BS, ..])
             .to_owned()
-            .into_shape(10)
+            .into_shape((BS, 10))
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f32, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank2<BS, 10>, f32, _> = dev.tensor(label.into_raw_vec());
         data.push((inp, lbl));
     }
 
-    for epoch in 0..5 {
+    for epoch in 0..7 {
         let mut data = data.clone();
         if epoch > 2 {
             opt.cfg.lr = 1e-5;
+        }
+        if epoch > 5 {
+            opt.cfg.lr = 1e-6;
         }
         data.shuffle(&mut thread_rng());
 
@@ -98,7 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             cross_entropy_with_logits_loss,
             // mse_loss,
             data.into_iter(),
-            5,
+            1,
             &mut dev,
         )
         .unwrap();
@@ -107,22 +113,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut total_true = 0;
         let num_eval = 1000;
         for num in 0..num_eval {
-            let img: Array3<f32> = test_data
+            let img: Array4<f32> = test_data
                 .slice(s![num, .., .., ..])
                 .to_owned()
-                .into_shape((3, 32, 32))
+                .into_shape((1, 3, 32, 32))
                 .unwrap();
-            let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+            let inp: Tensor<Rank4<1, 3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
 
-            let label: Array1<f32> = test_labels
+            let label: Array2<f32> = test_labels
                 .slice(s![num, ..])
                 .to_owned()
-                .into_shape(10)
+                .into_shape((1, 10))
                 .unwrap();
-            let lbl: Tensor<Rank1<10>, f32, _> = dev.tensor(label.into_raw_vec());
+            let lbl: Tensor<Rank2<1, 10>, f32, _> = dev.tensor(label.into_raw_vec());
             let lbl = lbl.as_vec();
 
-            let output = model.try_forward(inp)?.softmax().as_vec();
+            let output = model.try_forward(inp)?.softmax::<Axis<1>>().as_vec();
 
             // Use this to check the actual numerical output of each vector
             // println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);

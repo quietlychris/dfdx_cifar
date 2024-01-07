@@ -25,13 +25,13 @@ struct SmallResnet<const NUM_CLASSES: usize> = (
 pub struct SimpleConvConfig<const NUM_CLASSES: usize> {
     // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
     // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    conv1: Conv2DConstConfig<3, 6, 5>,
+    conv1: Conv2DConstConfig<3, 6, 5, 1, 1>,
     relu1: ReLU,
     mp: MaxPool2DConst<2, 2>,
-    conv2: Conv2DConstConfig<6, 16, 5>,
+    conv2: Conv2DConstConfig<6, 16, 5, 1, 1>,
     relu2: ReLU,
     flatten: Flatten2D,
-    fc1: LinearConstConfig<1600, 120>,
+    fc1: LinearConstConfig<2704, 120>,
     dp1: Dropout,
     fc2: LinearConstConfig<120, 84>,
     dp2: Dropout,
