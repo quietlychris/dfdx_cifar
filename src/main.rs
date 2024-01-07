@@ -6,46 +6,27 @@
 use dfdx::prelude::*;
 // use dfdx::tensor_ops::softmax;
 
-mod resnet;
-// use crate::resnet::*;
+use std::error::Error;
+mod networks;
+use crate::networks::*;
 mod helper;
 use crate::helper::*;
-//mod simple_conv;
-//use crate::simple_conv::*;
-
-/* GOOD!
-// Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-// 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-// conv1: Conv2DConstConfig<3, 2, 1>,
-*/
-
-// Mirroring https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-#[derive(Default, Clone, Sequential)]
-#[built(FcNet)]
-struct FcNetConfig<const NUM_CLASSES: usize> {
-    // Conv2DConstConfig<INPUT_CHANNELS (3 for RGB), 1, 3>
-    // 3072 / 3 = 1024 * 1 * 1 = 1024; 3072 / 3 = 1024 * 2 * 1 = 2048
-    conv1: Conv2DConstConfig<3, 6, 5>,
-    mp: MaxPool2DConst<2, 2>,
-    conv2: Conv2DConstConfig<6, 16, 5>,
-    flatten: Flatten2D,
-    fc1: LinearConstConfig<1600, 120>,
-    fc2: LinearConstConfig<120, 84>,
-    fc3: LinearConstConfig<84, NUM_CLASSES>,
-    // softmax: Softmax
-}
 
 use cifar_ten::*;
-use ndarray::{s, Array1, Array3, Array4};
+use ndarray::{s, Array1, Array2, Array3, Array4};
+use pbr::ProgressBar;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 
-fn main() {
+const BS: usize = 1; // BATCH_SIZE
+
+fn main() -> Result<(), Box<dyn Error>> {
     dfdx::flush_denormals_to_zero();
     //---- Resnet---------
     let mut dev = AutoDevice::default();
-    // let arch = Resnet18Config::<10>::default();
-    // type Model = Resnet18Config<10>;
-    type Model = FcNetConfig<10>;
-    let mut model = dev.build_module::<f64>(Model::default());
+    type Model = SimpleConvConfig<10>;
+    //type Model = Resnet18Config<10>;
+    let mut model = dev.build_module::<f32>(Model::default());
 
     // Set up the optimizer using either Sgd or Adam
 
@@ -77,7 +58,7 @@ fn main() {
         .encode_one_hot(true)
         .build()
         .unwrap()
-        .to_ndarray::<f64>()
+        .to_ndarray::<f32>()
         .unwrap();
     // Normalize the imagery
     let train_data = train_data.mapv(|x| x / 256.0);
@@ -85,84 +66,100 @@ fn main() {
 
     // Create a training data set using ndarray for convenience
     let mut data = Vec::new();
-    for num in 0..50_000 {
-        let img: Array3<f64> = train_data
-            .slice(s![num, .., .., ..])
+    for num in 0..(50_000 / BS) {
+        let base = BS * num;
+        let img: Array4<f32> = train_data
+            .slice(s![base..base+BS, .., .., ..])
             .to_owned()
-            .into_shape((3, 32, 32))
+            .into_shape((BS, 3, 32, 32))
             .unwrap();
         // println!("{:.2?}", &img);
-        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
+        let inp: Tensor<Rank4<BS, 3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
 
-        let label: Array1<f64> = train_labels
-            .slice(s![num, ..])
+        let label: Array2<f32> = train_labels
+            .slice(s![base..base+BS, ..])
             .to_owned()
-            .into_shape(10)
+            .into_shape((BS, 10))
             .unwrap();
-        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
+        let lbl: Tensor<Rank2<BS, 10>, f32, _> = dev.tensor(label.into_raw_vec());
         data.push((inp, lbl));
     }
 
-    // Classification train loop taken from dfdx example     let epochs = 2;
-    classification_train(
-        &mut model,
-        &mut opt,
-        // binary_cross_entropy_with_logits_loss,
-        cross_entropy_with_logits_loss,
-        // mse_loss,
-        data.clone().into_iter(),
-        5,
-        &mut dev,
-    )
-    .unwrap();
-
-    // Create an eval data set of just a few images for comparison
-
-    let mut total_true = 0;
-    let num_eval = 1000;
-    for num in 0..num_eval {
-        let img: Array3<f64> = test_data
-            .slice(s![num, .., .., ..])
-            .to_owned()
-            .into_shape((3, 32, 32))
-            .unwrap();
-        let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.tensor(img.into_raw_vec());
-
-        let label: Array1<f64> = test_labels
-            .slice(s![num, ..])
-            .to_owned()
-            .into_shape(10)
-            .unwrap();
-        let lbl: Tensor<Rank1<10>, f64, _> = dev.tensor(label.into_raw_vec());
-        let lbl = lbl.as_vec();
-
-        let output = model.forward(inp).softmax().as_vec();
-
-        // Use this to check the actual numerical output of each vector
-        println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
-        let max_index_output = max_index(&output);
-        let max_index_label = max_index(&lbl);
-        if max_index_output == max_index_label {
-            // if output[max_index_output] > 0.2 {
-            total_true += 1;
-            // }
+    for epoch in 0..7 {
+        let mut data = data.clone();
+        if epoch > 2 {
+            opt.cfg.lr = 1e-5;
         }
+        if epoch > 5 {
+            opt.cfg.lr = 1e-6;
+        }
+        data.shuffle(&mut thread_rng());
+
+        // Classification train loop taken from dfdx example
+        println!("Epoch #{}", epoch);
+        classification_train(
+            &mut model,
+            &mut opt,
+            // binary_cross_entropy_with_logits_loss,
+            cross_entropy_with_logits_loss,
+            // mse_loss,
+            data.into_iter(),
+            1,
+            &mut dev,
+        )
+        .unwrap();
+
+        // Create an eval data set of just a few images for comparison
+        let mut total_true = 0;
+        let num_eval = 1000;
+        for num in 0..num_eval {
+            let img: Array4<f32> = test_data
+                .slice(s![num, .., .., ..])
+                .to_owned()
+                .into_shape((1, 3, 32, 32))
+                .unwrap();
+            let inp: Tensor<Rank4<1, 3, 32, 32>, f32, _> = dev.tensor(img.into_raw_vec());
+
+            let label: Array2<f32> = test_labels
+                .slice(s![num, ..])
+                .to_owned()
+                .into_shape((1, 10))
+                .unwrap();
+            let lbl: Tensor<Rank2<1, 10>, f32, _> = dev.tensor(label.into_raw_vec());
+            let lbl = lbl.as_vec();
+
+            let output = model.try_forward(inp)?.softmax::<Axis<1>>().as_vec();
+
+            // Use this to check the actual numerical output of each vector
+            // println!("Actual: {:.3?}\nLabel: {:.3?}", output, lbl);
+            let max_index_output = max_index(&output);
+            let max_index_label = max_index(&lbl);
+            if max_index_output == max_index_label {
+                // if output[max_index_output] > 0.2 {
+                total_true += 1;
+                // }
+            }
+        }
+        println!("total_true: {}/{}", total_true, num_eval);
+        println!("% true: {}", total_true as f32 / num_eval as f32);
     }
-    println!("total_true: {}/{}", total_true, num_eval);
-    println!("% true: {}", total_true as f64 / num_eval as f64);
 
     // Compare eval set ouputs from output of just a zeroed input
+    /*
     println!("Do it with all zeros");
-    let inp: Tensor<Rank3<3, 32, 32>, f64, _> = dev.zeros();
-    let lbl: Tensor<Rank1<10>, f64, _> = dev.zeros();
+    let inp: Tensor<Rank3<3, 32, 32>, f32, _> = dev.zeros();
+    let lbl: Tensor<Rank1<10>, f32, _> = dev.zeros();
 
-    let output: Tensor<Rank1<10>, f64, _> = model.forward(inp);
+    let output: Tensor<Rank1<10>, f32, _> = model.forward(inp);
     // dbg!(output.as_vec());
     println!(
         "Actual: {:.3?}\nLabel: {:.3?}",
         output.softmax().as_vec(),
         lbl.as_vec()
     );
+    */
+
+    Ok(())
 }
 
 /// Our generic training function. Works with any model/optimizer/loss function!
@@ -179,7 +176,7 @@ fn classification_train<
     // optimizer, pretty straight forward
     Opt: Optimizer<Model, E, D>,
     // our data will just be any iterator over these items. easy!
-    Data: Iterator<Item = (Inp, Lbl)>,
+    Data: ExactSizeIterator<Item = (Inp, Lbl)>,
     // Our loss function that takes the model's output & label and returns
     // the loss. again we can use a rust builtin
     Criterion: FnMut(Model::Output, Lbl) -> Loss,
@@ -196,10 +193,15 @@ fn classification_train<
     data: Data,
     batch_accum: usize,
     device: &mut AutoDevice,
-) -> Result<(), Error> {
+) -> Result<(), Box<dyn Error>> {
     // Should this be inside or outside the enumeration loop?
     let mut grads = model.try_alloc_grads()?;
-    for (i, (inp, lbl)) in data.enumerate() {
+
+    let full_size = data.len();
+    let mut pb = ProgressBar::new(full_size.try_into().unwrap());
+    pb.format("╢=> ╟");
+
+    for (i, (inp, lbl)) in data.into_iter().enumerate() {
         let y = model.try_forward_mut(inp.traced(grads))?;
 
         let loss = criterion(y, lbl);
@@ -207,12 +209,13 @@ fn classification_train<
         // println!("Loss value for {}: {:?}", i, &loss_value);
         grads = loss.try_backward().unwrap();
         device.synchronize();
+        pb.inc();
         if i % batch_accum == 0 {
-            println!("Updating!");
+            // println!("Updating!");
             opt.update(model, &grads).unwrap();
             model.try_zero_grads(&mut grads)?;
             device.synchronize();
-            println!("batch {i} | loss = {loss_value:?}");
+            pb.message(format!("loss = {loss_value:.3?} |").as_str());
         }
     }
     Ok(())

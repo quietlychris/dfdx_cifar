@@ -6,10 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dfdx = { git = "https://github.com/coreylowman/dfdx.git", commit  = "4615ac1", features = ["nightly"]}
+# dfdx = { git = "https://github.com/coreylowman/dfdx.git", commit  = "beee7a1", features = ["nightly", "cuda"]}
+# dfdx = { version = "0.13", features = ["nightly"]}
 cifar-ten = { version = "0.5", features = ["download", "to_ndarray_015"]}
 ndarray = "0.15"
 indicatif = "0.16"
 rand = "0.8"
+pbr = {version = "1"}
 
 mnist = {version = "0.6", features = ["download"]}
+
+[dependencies.dfdx]
+git = "https://github.com/coreylowman/dfdx.git"
+commit  = "beee7a1"
+features = ["nightly"]
+cuda = ["dfdx/cuda"]
